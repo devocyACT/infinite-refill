@@ -3,8 +3,10 @@ package scheduler
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/devocyACT/infinite-refill/internal/clean"
@@ -44,6 +46,10 @@ func NewScheduler(cfg *SchedulerConfig, cleaner *clean.Cleaner, refillLoop *loop
 func (s *Scheduler) Start() error {
 	logger.Info("启动调度器（间隔=%d 分钟）", s.config.IntervalMinutes)
 
+	// Setup signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 	ticker := time.NewTicker(time.Duration(s.config.IntervalMinutes) * time.Minute)
 	defer ticker.Stop()
 
@@ -58,6 +64,10 @@ func (s *Scheduler) Start() error {
 			if err := s.runOnce(); err != nil {
 				logger.Error("定时运行失败：%v", err)
 			}
+		case sig := <-sigChan:
+			logger.Info("收到信号 %v，正在停止调度器...", sig)
+			s.Stop()
+			return nil
 		case <-s.stopChan:
 			logger.Info("调度器已停止")
 			return nil
