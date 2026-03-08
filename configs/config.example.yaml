@@ -1,0 +1,48 @@
+# Example configuration file for infinite-refill
+# You can use environment variables instead of this file
+
+# Server configuration
+server_url: "https://your-server.com"
+user_key: "your-user-key"
+
+# Accounts directory
+accounts_dir: "./accounts"
+
+# Pool configuration
+target_pool_size: 10
+total_hold_limit: 50
+
+# Probe configuration
+probe:
+  parallel: 6
+  connect_timeout: 5s
+  max_time: 15s
+  wait_timeout: 600
+
+# Topup configuration
+topup:
+  connect_timeout: 10s
+  max_time: 180s
+  retry: 3
+  retry_delay: 3s
+
+# Clean configuration
+clean:
+  delete_statuses: [401, 429]
+  expired_days: 30
+
+# Proxy configuration
+proxy:
+  mode: "auto"  # auto, direct, proxy, mixed
+  url: ""       # Proxy URL (optional)
+  wham_mode: "auto"
+  server_mode: "auto"
+
+# Loop configuration
+loop:
+  max_iterations: 6
+
+# Scheduler configuration
+scheduler:
+  enabled: false
+  interval_minutes: 30

@@ -1,0 +1,37 @@
+# Build artifacts
+/refill
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test and coverage
+*.test
+*.out
+coverage.html
+
+# Output directories
+/out
+/accounts
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config files with secrets
+config.yaml
+.env
+
+# Lock files
+.refill.lock
+
+# Go workspace
+go.work
+go.work.sum

@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  refill:
+    image: infinite-refill:latest
+    container_name: refill-scheduler
+    restart: unless-stopped
+
+    volumes:
+      # 账号文件目录
+      - ./accounts:/data/accounts
+      # 输出报告目录
+      - ./out:/data/out
+
+    environment:
+      # 必需配置
+      - SERVER_URL=https://your-server.com
+      - USER_KEY=your-user-key-here
+      - ACCOUNTS_DIR=/data/accounts
+
+      # 池配置
+      - TARGET_POOL_SIZE=10
+      - TOTAL_HOLD_LIMIT=30
+
+      # 调度器配置
+      - SCHEDULER_INTERVAL_MINUTES=30
+
+      # 探测配置
+      - PROBE_PARALLEL=6
+      - PROBE_CONNECT_TIMEOUT=5
+      - PROBE_MAX_TIME=15
+      - PROBE_WAIT_TIMEOUT=600
+
+      # Topup 配置
+      - TOPUP_CONNECT_TIMEOUT=10
+      - TOPUP_MAX_TIME=360
+      - TOPUP_RETRY=3
+
+      # 清理配置
+      - CLEAN_DELETE_STATUSES=401,429
+      - CLEAN_EXPIRED_DAYS=30
+
+      # 代理配置
+      - PROXY_MODE=mixed
+      - PROXY_URL=
+      - WHAM_PROXY_MODE=auto
+      - SERVER_PROXY_MODE=auto
+
+      # 闭环配置
+      - LOOP_MAX_ITERATIONS=6
+
+    # 默认命令：启动定时任务
+    command: scheduler start
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "refill", "check"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
