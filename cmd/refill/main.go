@@ -8,6 +8,7 @@ import (
 	"github.com/devocyACT/infinite-refill/internal/account"
 	"github.com/devocyACT/infinite-refill/internal/clean"
 	"github.com/devocyACT/infinite-refill/internal/config"
+	"github.com/devocyACT/infinite-refill/internal/downloader"
 	"github.com/devocyACT/infinite-refill/internal/httpclient"
 	"github.com/devocyACT/infinite-refill/internal/loop"
 	"github.com/devocyACT/infinite-refill/internal/probe"
@@ -116,31 +117,37 @@ var syncCmd = &cobra.Command{
 
 		logger.Info("服务端返回账号条数：%d", len(resp.Accounts))
 
-		// Download accounts
-		whamClient, err := httpclient.NewClient(cfg, true)
-		if err != nil {
-			return fmt.Errorf("failed to create WHAM client: %w", err)
-		}
-
-		// Convert sync response to topup response format for reuse
-		topupResp := &topup.TopupResponse{
-			OK:              resp.OK,
-			Accounts:        make([]topup.AccountInfo, len(resp.Accounts)),
-			AutoDisabled:    resp.AutoDisabled,
-			AbuseAutoBanned: resp.AbuseAutoBanned,
-		}
-
+		// Convert sync response to topup.AccountInfo for downloader
+		accountInfos := make([]topup.AccountInfo, len(resp.Accounts))
 		for i, acc := range resp.Accounts {
-			topupResp.Accounts[i] = topup.AccountInfo{
+			accountInfos[i] = topup.AccountInfo{
 				FileName:    acc.FileName,
 				DownloadURL: acc.DownloadURL,
 				AuthJSON:    acc.AuthJSON,
 			}
 		}
 
-		newAccounts, err := topup.DownloadAccounts(topupResp, cfg.AccountsDir, whamClient)
+		// Try aria2c first for better performance
+		newAccounts, err := downloader.DownloadWithAria2c(accountInfos, cfg.AccountsDir, cfg.Proxy.URL, 6)
 		if err != nil {
-			logger.Warn("下载账号失败：%v", err)
+			// Fallback to standard HTTP download
+			logger.Debug("回退到标准 HTTP 下载")
+			whamClient, err := httpclient.NewClient(cfg, true)
+			if err != nil {
+				return fmt.Errorf("failed to create WHAM client: %w", err)
+			}
+
+			topupResp := &topup.TopupResponse{
+				OK:              resp.OK,
+				Accounts:        accountInfos,
+				AutoDisabled:    resp.AutoDisabled,
+				AbuseAutoBanned: resp.AbuseAutoBanned,
+			}
+
+			newAccounts, err = topup.DownloadAccounts(topupResp, cfg.AccountsDir, whamClient)
+			if err != nil {
+				logger.Warn("下载账号失败：%v", err)
+			}
 		}
 
 		logger.Info("已写入账号：%d", len(newAccounts))
