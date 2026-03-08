@@ -5,6 +5,7 @@ import (
 
 	"github.com/devocyACT/infinite-refill/internal/account"
 	"github.com/devocyACT/infinite-refill/internal/config"
+	"github.com/devocyACT/infinite-refill/internal/downloader"
 	"github.com/devocyACT/infinite-refill/internal/probe"
 	"github.com/devocyACT/infinite-refill/internal/topup"
 	"github.com/devocyACT/infinite-refill/pkg/logger"
@@ -133,9 +134,9 @@ func (rl *RefillLoop) Run() (*LoopResult, error) {
 			return result, err
 		}
 
-		// Download new accounts
+		// Download new accounts using optimized HTTP concurrent download
 		logger.Info("下载 %d 个新账号", len(topupResp.Accounts))
-		newAccounts, err := topup.DownloadAccounts(topupResp, rl.config.AccountsDir, rl.topupClient.GetHTTPClient())
+		newAccounts, err := downloader.DownloadWithHTTP(topupResp.Accounts, rl.config.AccountsDir, rl.topupClient.GetHTTPClient(), 6)
 		if err != nil {
 			logger.Warn("下载账号失败：%v", err)
 		}

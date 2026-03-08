@@ -127,32 +127,15 @@ var syncCmd = &cobra.Command{
 			}
 		}
 
-		// Try aria2c first for best performance
-		newAccounts, err := downloader.DownloadWithAria2c(accountInfos, cfg.AccountsDir, cfg.Proxy.URL, 6)
+		// Use optimized HTTP concurrent download
+		whamClient, err := httpclient.NewClient(cfg, true)
 		if err != nil {
-			// Fallback to wget
-			logger.Debug("尝试使用 wget")
-			newAccounts, err = downloader.DownloadWithWget(accountInfos, cfg.AccountsDir, cfg.Proxy.URL, 6)
-			if err != nil {
-				// Fallback to standard HTTP download
-				logger.Debug("回退到标准 HTTP 下载")
-				whamClient, err := httpclient.NewClient(cfg, true)
-				if err != nil {
-					return fmt.Errorf("failed to create WHAM client: %w", err)
-				}
+			return fmt.Errorf("failed to create WHAM client: %w", err)
+		}
 
-				topupResp := &topup.TopupResponse{
-					OK:              resp.OK,
-					Accounts:        accountInfos,
-					AutoDisabled:    resp.AutoDisabled,
-					AbuseAutoBanned: resp.AbuseAutoBanned,
-				}
-
-				newAccounts, err = topup.DownloadAccounts(topupResp, cfg.AccountsDir, whamClient)
-				if err != nil {
-					logger.Warn("下载账号失败：%v", err)
-				}
-			}
+		newAccounts, err := downloader.DownloadWithHTTP(accountInfos, cfg.AccountsDir, whamClient, 6)
+		if err != nil {
+			logger.Warn("下载账号失败：%v", err)
 		}
 
 		logger.Info("已写入账号：%d", len(newAccounts))
