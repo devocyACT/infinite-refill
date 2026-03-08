@@ -91,6 +91,10 @@ func (c *Client) sendRequest(url string, req *TopupRequest) (*TopupResponse, err
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	logger.Debug("Topup 请求 URL: %s", url)
+	logger.Debug("Topup 请求体: target_pool_size=%d, reports=%d, account_ids=%d",
+		req.TargetPoolSize, len(req.Reports), len(req.AccountIDs))
+
 	// Create HTTP request
 	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(data))
 	if err != nil {
@@ -100,6 +104,7 @@ func (c *Client) sendRequest(url string, req *TopupRequest) (*TopupResponse, err
 	// Set headers
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-User-Key", c.userKey)
+	logger.Debug("Topup 请求头: X-User-Key=%s...%s", c.userKey[:8], c.userKey[len(c.userKey)-4:])
 
 	// Send request
 	httpResp, err := c.httpClient.Do(httpReq)
@@ -108,22 +113,31 @@ func (c *Client) sendRequest(url string, req *TopupRequest) (*TopupResponse, err
 	}
 	defer httpResp.Body.Close()
 
+	logger.Debug("Topup 响应状态码: %d", httpResp.StatusCode)
+
 	// Read response
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
+	logger.Debug("Topup 响应体长度: %d bytes", len(body))
+
 	// Check status code
 	if httpResp.StatusCode != http.StatusOK {
+		logger.Debug("Topup 错误响应: %s", string(body))
 		return nil, fmt.Errorf("server returned status %d: %s", httpResp.StatusCode, string(body))
 	}
 
 	// Parse response
 	var resp TopupResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
+		logger.Debug("Topup 响应解析失败: %s", string(body))
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
+
+	logger.Debug("Topup 响应: ok=%v, accounts=%d, auto_disabled=%v, abuse_auto_banned=%v, total_hold_limit=%d",
+		resp.OK, len(resp.Accounts), resp.AutoDisabled, resp.AbuseAutoBanned, resp.TotalHoldLimit)
 
 	return &resp, nil
 }
