@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"context"
 	"crypto/md5"
 	"fmt"
 	"net/http"
@@ -61,8 +62,11 @@ func (p *Prober) ProbeAccount(acc *account.Account) ProbeResult {
 		result.EmailHash = fmt.Sprintf("%x", hash)
 	}
 
-	// Create request
-	req, err := http.NewRequest("GET", whamURL, nil)
+	// Create request with context timeout
+	ctx, cancel := context.WithTimeout(context.Background(), p.config.MaxTime)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", whamURL, nil)
 	if err != nil {
 		result.StatusCode = 0
 		result.Error = err
@@ -95,7 +99,6 @@ func (p *Prober) ProbeAll(accounts []account.Account) *ProbeReport {
 	logger.Info("开始探测 %d 个账号（并发数=%d）", len(accounts), p.config.Parallel)
 
 	results := make([]ProbeResult, 0, len(accounts))
-	resultChan := make(chan ProbeResult, len(accounts))
 
 	// Start worker pool
 	pool := NewWorkerPool(p.config.Parallel, p.config.WaitTimeout)
@@ -111,7 +114,6 @@ func (p *Prober) ProbeAll(accounts []account.Account) *ProbeReport {
 
 	// Wait for completion
 	pool.Wait()
-	close(resultChan)
 
 	// Collect results
 	for result := range pool.Results() {
