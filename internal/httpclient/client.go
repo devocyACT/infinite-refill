@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -58,6 +59,15 @@ func NewClient(cfg *config.Config, forWham bool) (*http.Client, error) {
 	} else {
 		timeout = cfg.Topup.MaxTime
 	}
+
+	// Set transport timeouts
+	transport.DialContext = (&net.Dialer{
+		Timeout:   5 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}).DialContext
+	transport.TLSHandshakeTimeout = 10 * time.Second
+	transport.ResponseHeaderTimeout = timeout
+	transport.ExpectContinueTimeout = 1 * time.Second
 
 	client := &http.Client{
 		Transport: transport,

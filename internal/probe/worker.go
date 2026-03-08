@@ -21,13 +21,18 @@ type WorkerPool struct {
 }
 
 // NewWorkerPool creates a new worker pool
-func NewWorkerPool(parallel, timeout int) *WorkerPool {
+func NewWorkerPool(parallel, timeout, jobCount int) *WorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
+	// Use jobCount for buffer size to avoid blocking on Submit
+	bufferSize := jobCount
+	if bufferSize < parallel*2 {
+		bufferSize = parallel * 2
+	}
 	return &WorkerPool{
 		parallel:    parallel,
 		timeout:     timeout,
-		jobs:        make(chan func() ProbeResult, parallel*2),
-		results:     make(chan ProbeResult, parallel*2),
+		jobs:        make(chan func() ProbeResult, bufferSize),
+		results:     make(chan ProbeResult, bufferSize),
 		stopTimeout: time.Duration(timeout) * time.Second,
 		ctx:         ctx,
 		cancel:      cancel,

@@ -100,8 +100,8 @@ func (p *Prober) ProbeAll(accounts []account.Account) *ProbeReport {
 
 	results := make([]ProbeResult, 0, len(accounts))
 
-	// Start worker pool
-	pool := NewWorkerPool(p.config.Parallel, p.config.WaitTimeout)
+	// Start worker pool with enough buffer for all jobs
+	pool := NewWorkerPool(p.config.Parallel, p.config.WaitTimeout, len(accounts))
 	pool.Start()
 
 	// Submit jobs
