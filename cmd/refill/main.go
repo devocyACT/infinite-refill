@@ -12,6 +12,7 @@ import (
 	"github.com/devocyACT/infinite-refill/internal/loop"
 	"github.com/devocyACT/infinite-refill/internal/probe"
 	"github.com/devocyACT/infinite-refill/internal/scheduler"
+	"github.com/devocyACT/infinite-refill/internal/sync"
 	"github.com/devocyACT/infinite-refill/internal/topup"
 	"github.com/devocyACT/infinite-refill/pkg/logger"
 )
@@ -82,42 +83,68 @@ var runCmd = &cobra.Command{
 
 var syncCmd = &cobra.Command{
 	Use:   "sync",
-	Short: "Sync all accounts (full probe)",
-	Long:  `Probes all accounts and generates a report without performing topup.`,
+	Short: "Sync all accounts from server",
+	Long:  `Fetches all accounts from the server using the sync-all API.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load(configFile)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Create components
-		accountMgr := account.NewManager(cfg.AccountsDir)
+		// Create HTTP client for server API
+		serverClient, err := httpclient.NewClient(cfg, false)
+		if err != nil {
+			return fmt.Errorf("failed to create server client: %w", err)
+		}
 
+		// Create sync client
+		syncClient := sync.NewClient(cfg.ServerURL, cfg.UserKey, serverClient)
+
+		// Call sync-all API
+		resp, err := syncClient.SyncAll()
+		if err != nil {
+			return fmt.Errorf("sync-all 请求失败：%w", err)
+		}
+
+		// Check for special conditions
+		if resp.AutoDisabled {
+			return fmt.Errorf("服务器已禁用自动续杯")
+		}
+		if resp.AbuseAutoBanned {
+			return fmt.Errorf("服务器检测到滥用，已自动封禁")
+		}
+
+		logger.Info("服务端返回账号条数：%d", len(resp.Accounts))
+
+		// Download accounts
 		whamClient, err := httpclient.NewClient(cfg, true)
 		if err != nil {
 			return fmt.Errorf("failed to create WHAM client: %w", err)
 		}
 
-		prober := probe.NewProber(&cfg.Probe, whamClient)
-
-		// Load and probe all accounts
-		accounts, err := accountMgr.LoadAll()
-		if err != nil {
-			return fmt.Errorf("加载账号失败：%w", err)
+		// Convert sync response to topup response format for reuse
+		topupResp := &topup.TopupResponse{
+			OK:              resp.OK,
+			Accounts:        make([]topup.AccountInfo, len(resp.Accounts)),
+			AutoDisabled:    resp.AutoDisabled,
+			AbuseAutoBanned: resp.AbuseAutoBanned,
 		}
 
-		logger.Info("探测 %d 个账号", len(accounts))
-		report := prober.ProbeAll(accounts)
-
-		// Save report
-		reportFile, err := probe.SaveReport(report, "out")
-		if err != nil {
-			return fmt.Errorf("保存报告失败：%w", err)
+		for i, acc := range resp.Accounts {
+			topupResp.Accounts[i] = topup.AccountInfo{
+				FileName:    acc.FileName,
+				DownloadURL: acc.DownloadURL,
+				AuthJSON:    acc.AuthJSON,
+			}
 		}
 
-		logger.Info("探测完成：总数=%d 成功=%d 网络失败=%d 失效=%d",
-			report.Total, report.Success, report.NetFail, report.Invalid)
-		logger.Info("报告已保存到：%s", reportFile)
+		newAccounts, err := topup.DownloadAccounts(topupResp, cfg.AccountsDir, whamClient)
+		if err != nil {
+			logger.Warn("下载账号失败：%v", err)
+		}
+
+		logger.Info("已写入账号：%d", len(newAccounts))
+		logger.Info("全量同步完成")
 
 		return nil
 	},
