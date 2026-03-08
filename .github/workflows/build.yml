@@ -29,11 +29,9 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Download dependencies
-        working-directory: ./refill
         run: go mod download
 
       - name: Run tests
-        working-directory: ./refill
         run: |
           go test -v -race -coverprofile=coverage.out ./...
           go tool cover -html=coverage.out -o coverage.html
@@ -42,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: refill/coverage.html
+          path: coverage.html
 
   build:
     name: Build
@@ -67,7 +65,6 @@ jobs:
           go-version: '1.22'
 
       - name: Build
-        working-directory: ./refill
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -85,4 +82,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: refill-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: refill/refill-*
+          path: refill-*
