@@ -103,9 +103,19 @@ func (rl *RefillLoop) Run() (*LoopResult, error) {
 			accountIDs = append(accountIDs, acc.AccountID)
 		}
 
+		// Only include invalid reports (401, 429) in topup request
+		invalidReports := make([]probe.ProbeResult, 0)
+		for _, result := range probeReport.Results {
+			if result.StatusCode == 401 || result.StatusCode == 429 {
+				invalidReports = append(invalidReports, result)
+			}
+		}
+
+		logger.Debug("Topup 请求：account_ids=%d, invalid_reports=%d", len(accountIDs), len(invalidReports))
+
 		topupReq := &topup.TopupRequest{
 			TargetPoolSize: rl.config.TargetPoolSize,
-			Reports:        probeReport.Results,
+			Reports:        invalidReports,
 			AccountIDs:     accountIDs,
 		}
 
